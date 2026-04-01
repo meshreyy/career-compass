@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Search, Lightbulb, Building2, Eye } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -16,34 +15,61 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 
 const StudentDashboard = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const [skills, setSkills] = useState<any[]>([]);
-  const [companiesRec, setCompaniesRec] = useState<any[]>([]);
+  const [user, setUser] = useState(null);
+
+  const [skills, setSkills] = useState([]);
+  const [preferredCompanies, setPreferredCompanies] = useState([]);
+  const [otherCompanies, setOtherCompanies] = useState([]);
+
+  const [predictedRole, setPredictedRole] = useState("");
+  const [missingPreferred, setMissingPreferred] = useState(false);
+
+  const [companies, setCompanies] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
-  // 🔥 Fetch placement data
+  // ======================
+  // LOAD USER
+  // ======================
+
   useEffect(() => {
+
+    const storedUser = localStorage.getItem("user");
+
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+
+  }, []);
+
+  // ======================
+  // FETCH TABLE DATA
+  // ======================
+
+  useEffect(() => {
+
     const fetchData = async () => {
-      const { data, error } = await supabase
+
+      const { data } = await supabase
         .from("placement_outcomes")
         .select("*");
 
-      if (error) {
-        console.error("Error fetching data:", error);
-      } else {
-        setCompanies(data || []);
-      }
-
+      setCompanies(data || []);
       setLoading(false);
+
     };
 
     fetchData();
+
   }, []);
 
-  // 🔍 Search filter
+  // ======================
+  // FILTER TABLE
+  // ======================
+
   const filteredCompanies = companies.filter((c) =>
     String(c.academic_year)
       .toLowerCase()
@@ -53,90 +79,83 @@ const StudentDashboard = () => {
       .includes(searchQuery.toLowerCase())
   );
 
-  // 🚀 Generate Recommendation
+  // ======================
+  // GENERATE RECOMMENDATION
+  // ======================
+
   const handleGenerate = async () => {
+
+    if (!user) return;
+
     setGenerating(true);
 
-    try {
-      const studentId = 1; // ⚠️ Replace with logged-in student later
+    const { data: skillsData } = await supabase
+      .from("student_skills")
+      .select("skill_name")
+      .eq("student_id", user.student_id);
 
-      // 1️⃣ Fetch student skills
-      const { data: skillsData, error: skillsError } = await supabase
-        .from("student_skills")
-        .select("skill_name")
-        .eq("student_id", studentId);
+    const userSkills = skillsData.map((s) =>
+      s.skill_name.toLowerCase()
+    );
 
-      if (skillsError) {
-        console.error("Error fetching skills:", skillsError);
-        return;
-      }
+    const preferredCompanies = user.preferred_company
+      ? user.preferred_company
+          .split(",")
+          .map((c) => c.trim().toLowerCase())
+      : [];
 
-      const userSkills = skillsData.map((s) =>
-        s.skill_name.toLowerCase()
-      );
+    const res = await fetch("http://127.0.0.1:5000/recommend", {
 
-      // 2️⃣ Fetch preferred companies
-      const { data: studentData, error: studentError } = await supabase
-        .from("student")
-        .select("preferred_company")
-        .eq("student_id", studentId)
-        .single();
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
 
-      if (studentError) {
-        console.error("Error fetching student:", studentError);
-        return;
-      }
+      body: JSON.stringify({
+        skills: userSkills,
+        companies: preferredCompanies
+      })
 
-      const preferredCompanies = studentData?.preferred_company
-        ? studentData.preferred_company
-            .split(",")
-            .map((c) => c.trim().toLowerCase())
-        : [];
+    });
 
-      // 3️⃣ Call Flask API
-      const res = await fetch("http://localhost:5000/recommend", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          skills: userSkills,
-          companies: preferredCompanies,
-        }),
-      });
+    const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error("API not reachable");
-      }
+    setPredictedRole(data.role || "");
+    setSkills(data.skills || []);
 
-      const data = await res.json();
+    setPreferredCompanies(data.preferred_companies || []);
+    setOtherCompanies(data.other_companies || []);
 
-      // 4️⃣ Update UI
-      setSkills(
-        data.skills.map((s: string) => ({
-          name: s,
-        }))
-      );
-
-      setCompaniesRec(
-        data.companies.map((c: string) => ({
-          name: c,
-          role: data.role,
-        }))
-      );
-    } catch (err) {
-      console.error("Error:", err);
-    }
+    setMissingPreferred(data.preferred_missing);
 
     setGenerating(false);
+
   };
 
   return (
+
     <div className="space-y-6">
 
-      {/* 🔍 Search */}
+      {/* PROFILE */}
+
+      {user && (
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Student Profile</CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            <p><strong>Name:</strong> {user.student_name}</p>
+            <p><strong>Email:</strong> {user.email}</p>
+            <p><strong>Branch:</strong> {user.branch}</p>
+            <p><strong>Year:</strong> {user.year}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SEARCH */}
+
       <div className="relative w-full max-w-xl">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
+
         <Input
           placeholder="Search by year or location..."
           className="pl-10"
@@ -145,145 +164,137 @@ const StudentDashboard = () => {
         />
       </div>
 
-      {/* 🚀 Generate Button */}
+      {/* GENERATE BUTTON */}
+
       <div className="flex justify-center">
         <Button onClick={handleGenerate} disabled={generating}>
           {generating ? "Generating..." : "Generate Recommendation"}
         </Button>
       </div>
 
-      {/* ⭐ Recommendation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+      {/* RECOMMENDATION CARDS */}
 
-        {/* Skills Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+
+        {/* SKILLS */}
+
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              Recommended Skills
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Recommended Skills</CardTitle>
           </CardHeader>
 
-          <CardContent className="space-y-2">
+          <CardContent>
+
             {skills.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center">
-                Click "Generate Recommendation"
-              </p>
+              <p>No skills yet</p>
             ) : (
-              skills.map((skill) => (
-                <div
-                  key={skill.name}
-                  className="flex items-center justify-between border rounded-md p-2"
-                >
-                  <span className="font-medium">{skill.name}</span>
-                  <Badge variant="secondary">Recommended</Badge>
+              skills.map((s) => (
+                <div key={s} className="border p-2 rounded mb-2">
+                  {s}
                 </div>
               ))
             )}
+
           </CardContent>
         </Card>
 
-        {/* Companies Card */}
+        {/* PREFERRED COMPANIES */}
+
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-primary" />
-              Recommended Companies
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Your Preferred Companies</CardTitle>
+
+            {predictedRole && (
+              <p className="text-sm text-blue-600 font-medium">
+                Predicted Role: {predictedRole}
+              </p>
+            )}
+
           </CardHeader>
 
-          <CardContent className="space-y-2">
-            {companiesRec.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center">
-                Click "Generate Recommendation"
+          <CardContent>
+
+            {missingPreferred ? (
+
+              <p className="text-sm text-gray-600">
+                We currently don't have role data for your preferred companies.
+                We're expanding our dataset.
               </p>
+
             ) : (
-              companiesRec.map((company) => (
-                <div
-                  key={company.name}
-                  className="flex items-center justify-between rounded-md border p-2"
-                >
-                  <div>
-                    <p className="font-medium">{company.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {company.role}
-                    </p>
-                  </div>
-                  <Badge variant="outline">Recommended</Badge>
-                </div>
-              ))
+
+              <p className="text-sm">
+                {preferredCompanies.join(", ")}
+              </p>
+
             )}
+
           </CardContent>
         </Card>
+
+        {/* OTHER COMPANIES */}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>You Can Also Apply Here</CardTitle>
+          </CardHeader>
+
+          <CardContent>
+
+            {otherCompanies.map((c) => (
+              <div key={c} className="border p-2 rounded mb-2">
+                {c} - {predictedRole}
+              </div>
+            ))}
+
+          </CardContent>
+        </Card>
+
       </div>
 
-      {/* 📊 Placement Table */}
+      {/* TABLE */}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Placement Outcomes
-          </CardTitle>
+          <CardTitle>Placement Outcomes</CardTitle>
         </CardHeader>
 
         <CardContent>
+
           {loading ? (
-            <p className="text-center text-muted-foreground">
-              Loading data...
-            </p>
-          ) : filteredCompanies.length === 0 ? (
-            <p className="text-center text-muted-foreground">
-              No data found
-            </p>
+            <p>Loading...</p>
           ) : (
+
             <Table>
+
               <TableHeader>
                 <TableRow>
                   <TableHead>Year</TableHead>
-                  <TableHead>Salary (LPA)</TableHead>
-                  <TableHead className="text-center">
-                    Applied
-                  </TableHead>
-                  <TableHead className="text-center">
-                    Shortlisted
-                  </TableHead>
+                  <TableHead>Salary</TableHead>
+                  <TableHead>Applied</TableHead>
+                  <TableHead>Shortlisted</TableHead>
                   <TableHead>Location</TableHead>
-                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
+
                 {filteredCompanies.map((c) => (
                   <TableRow key={c.placement_outcomes_id}>
-                    <TableCell className="font-medium">
-                      {c.academic_year}
-                    </TableCell>
-
+                    <TableCell>{c.academic_year}</TableCell>
                     <TableCell>{c.offered_salary}</TableCell>
-
-                    <TableCell className="text-center">
-                      {c.students_applied}
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      {c.shortlisted_students}
-                    </TableCell>
-
-                    <TableCell>
-                      {c.job_location_offered}
-                    </TableCell>
-
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
-                    </TableCell>
-
+                    <TableCell>{c.students_applied}</TableCell>
+                    <TableCell>{c.shortlisted_students}</TableCell>
+                    <TableCell>{c.job_location_offered}</TableCell>
                   </TableRow>
                 ))}
+
               </TableBody>
+
             </Table>
+
           )}
+
         </CardContent>
       </Card>
 

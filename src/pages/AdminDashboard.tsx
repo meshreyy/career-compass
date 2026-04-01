@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileCheck, Users, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,18 +10,43 @@ import {
 import { pendingApprovals as initialPending, approvedData } from "@/data/mockData";
 
 const AdminDashboard = () => {
-  const [pending, setPending] = useState(initialPending);
+  const navigate = useNavigate();
 
+  const [pending, setPending] = useState(initialPending);
+  const [user, setUser] = useState<any>(null); // ✅ FIXED
+
+  // ✅ CHECK LOGIN + LOAD USER
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    const role = localStorage.getItem("role");
+
+    if (!storedUser || role !== "admin") {
+      alert("Access denied");
+      navigate("/");
+      return;
+    }
+
+    setUser(JSON.parse(storedUser)); // ✅ SET USER
+  }, [navigate]);
+
+  // ✅ APPROVE
   const handleApprove = (id: number) => {
     setPending((prev) => prev.filter((p) => p.id !== id));
   };
 
+  // ✅ REJECT
   const handleReject = (id: number) => {
     setPending((prev) => prev.filter((p) => p.id !== id));
   };
 
   return (
     <div className="space-y-6">
+
+      {/* ✅ WELCOME TEXT (TOP FIXED) */}
+      <h2 className="text-xl font-bold text-center">
+        Welcome, {user?.name || "Admin"}
+      </h2>
+
       {/* Pending Approvals */}
       <Card>
         <CardHeader>
@@ -28,10 +54,13 @@ const AdminDashboard = () => {
             <FileCheck className="h-5 w-5 text-primary" />
             Pending Approvals
             {pending.length > 0 && (
-              <Badge variant="destructive" className="ml-2">{pending.length}</Badge>
+              <Badge variant="destructive" className="ml-2">
+                {pending.length}
+              </Badge>
             )}
           </CardTitle>
         </CardHeader>
+
         <CardContent>
           {pending.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
@@ -50,11 +79,17 @@ const AdminDashboard = () => {
                       Uploaded by {item.uploadedBy} · {item.uploadedAt} · {item.records} records
                     </p>
                   </div>
+
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => handleApprove(item.id)}>
                       <Check className="h-4 w-4 mr-1" /> Approve
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(item.id)}>
+
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleReject(item.id)}
+                    >
                       <X className="h-4 w-4 mr-1" /> Reject
                     </Button>
                   </div>
@@ -73,6 +108,7 @@ const AdminDashboard = () => {
             Verified Placement Records
           </CardTitle>
         </CardHeader>
+
         <CardContent>
           <Table>
             <TableHeader>
@@ -84,10 +120,13 @@ const AdminDashboard = () => {
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {approvedData.map((record) => (
                 <TableRow key={record.id}>
-                  <TableCell className="font-medium">{record.studentName}</TableCell>
+                  <TableCell className="font-medium">
+                    {record.studentName}
+                  </TableCell>
                   <TableCell>{record.company}</TableCell>
                   <TableCell>{record.package}</TableCell>
                   <TableCell>{record.department}</TableCell>
@@ -99,6 +138,7 @@ const AdminDashboard = () => {
                 </TableRow>
               ))}
             </TableBody>
+
           </Table>
         </CardContent>
       </Card>
