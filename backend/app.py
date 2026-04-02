@@ -181,14 +181,6 @@ def recommend():
     # =========================
     role_df = df[df["role_name"] == role_name]
 
-    preferred_df = role_df[
-        role_df["company_name"].str.lower().isin(preferred_companies)
-    ]
-
-    other_df = role_df[
-        ~role_df["company_name"].str.lower().isin(preferred_companies)
-    ]
-
     # =========================
     # TF-IDF SIMILARITY
     # =========================
@@ -210,17 +202,22 @@ def recommend():
 
     recommended_skills = sorted(skill_freq, key=skill_freq.get, reverse=True)[:5]
 
-    preferred_list = preferred_df["company_name"].unique().tolist()
-    other_list = other_df["company_name"].unique().tolist()[:5]
+    # =========================
+    # COMPANIES
+    # =========================
+
+    # preferred companies ALWAYS returned
+    preferred_list = preferred_companies
+
+    # recommended companies from dataset
+    other_list = role_df["company_name"].str.lower().unique().tolist()[:5]
 
     return jsonify({
         "role": role_name,
         "skills": recommended_skills,
         "preferred_companies": preferred_list,
-        "other_companies": other_list,
-        "preferred_missing": len(preferred_list) == 0
+        "other_companies": other_list
     })
-
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":

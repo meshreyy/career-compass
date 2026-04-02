@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { FileCheck, Users, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,105 +6,141 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { pendingApprovals as initialPending, approvedData } from "@/data/mockData";
+import { supabase } from "@/lib/supabaseClient";
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
+  const [pending, setPending] = useState<any[]>([]);
+  const [approved, setApproved] = useState<any[]>([]);
+  const [rejectMsg, setRejectMsg] = useState("");
+  const [selectedRejectId, setSelectedRejectId] = useState<number | null>(null);
 
-  const [pending, setPending] = useState(initialPending);
-  const [user, setUser] = useState<any>(null); // ✅ FIXED
+  // 🔥 FETCH DATA
+  const fetchData = async () => {
+    const { data } = await supabase
+      .from("approvals")
+      .select("*")
+      .eq("status", "pending");
 
-  // ✅ CHECK LOGIN + LOAD USER
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const role = localStorage.getItem("role");
+    setPending(data || []);
 
-    if (!storedUser || role !== "admin") {
-      alert("Access denied");
-      navigate("/");
-      return;
-    }
+    const { data: approvedData } = await supabase
+      .from("placement_outcomes")
+      .select("*");
 
-    setUser(JSON.parse(storedUser)); // ✅ SET USER
-  }, [navigate]);
-
-  // ✅ APPROVE
-  const handleApprove = (id: number) => {
-    setPending((prev) => prev.filter((p) => p.id !== id));
+    setApproved(approvedData || []);
   };
 
-  // ✅ REJECT
-  const handleReject = (id: number) => {
-    setPending((prev) => prev.filter((p) => p.id !== id));
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // ✅ APPROVE
+  const handleApprove = async (item: any) => {
+    try {
+      const rows = item.data; // CSV data
+
+      // convert CSV → DB rows
+      const formatted = rows.slice(1).map((r: string[]) => ({
+        academic_year: r[0],
+        offered_salary: r[1],
+        students_applied: r[2],
+        shortlisted_students: r[3],
+        job_location_offered: r[4],
+      }));
+
+      // insert into placement_outcomes
+      await supabase.from("placement_outcomes").insert(formatted);
+
+      // update status
+      await supabase
+        .from("approvals")
+        .update({ status: "approved" })
+        .eq("id", item.id);
+
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ❌ REJECT
+  const handleReject = async (id: number) => {
+    await supabase
+      .from("approvals")
+      .update({
+        status: "rejected",
+        message: rejectMsg,
+      })
+      .eq("id", id);
+
+    setRejectMsg("");
+    setSelectedRejectId(null);
+    fetchData();
   };
 
   return (
     <div className="space-y-6">
 
-      {/* ✅ WELCOME TEXT (TOP FIXED) */}
-      <h2 className="text-xl font-bold text-center">
-        Welcome, {user?.name || "Admin"}
-      </h2>
-
-      {/* Pending Approvals */}
+      {/* 🔹 PENDING */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <FileCheck className="h-5 w-5 text-primary" />
             Pending Approvals
             {pending.length > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {pending.length}
-              </Badge>
+              <Badge variant="destructive">{pending.length}</Badge>
             )}
           </CardTitle>
         </CardHeader>
 
         <CardContent>
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No pending approvals. All data has been reviewed.
-            </p>
+            <p className="text-center">No pending</p>
           ) : (
-            <div className="space-y-3">
-              {pending.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium text-sm">{item.fileName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Uploaded by {item.uploadedBy} · {item.uploadedAt} · {item.records} records
-                    </p>
-                  </div>
+            pending.map((item) => (
+              <div key={item.id} className="border p-4 mb-3 rounded">
 
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleApprove(item.id)}>
-                      <Check className="h-4 w-4 mr-1" /> Approve
-                    </Button>
+                <p className="font-medium">{item.file_name}</p>
 
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleReject(item.id)}
-                    >
-                      <X className="h-4 w-4 mr-1" /> Reject
-                    </Button>
-                  </div>
+                <div className="flex gap-2 mt-2">
+                  <Button onClick={() => handleApprove(item)}>
+                    <Check className="h-4 w-4 mr-1" /> Approve
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    onClick={() => setSelectedRejectId(item.id)}
+                  >
+                    <X className="h-4 w-4 mr-1" /> Reject
+                  </Button>
                 </div>
-              ))}
-            </div>
+
+                {/* 🔥 REJECT MESSAGE BOX */}
+                {selectedRejectId === item.id && (
+                  <div className="mt-3 space-y-2">
+                    <textarea
+                      className="w-full border p-2 rounded"
+                      placeholder="Enter rejection reason..."
+                      value={rejectMsg}
+                      onChange={(e) => setRejectMsg(e.target.value)}
+                    />
+                    <Button onClick={() => handleReject(item.id)}>
+                      Submit Rejection
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
 
-      {/* Approved Data */}
+      {/* ✅ APPROVED DATA */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="h-5 w-5 text-primary" />
-            Verified Placement Records
+            Approved Data
           </CardTitle>
         </CardHeader>
 
@@ -113,35 +148,29 @@ const AdminDashboard = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Student Name</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Package</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Year</TableHead>
+                <TableHead>Salary</TableHead>
+                <TableHead>Applied</TableHead>
+                <TableHead>Shortlisted</TableHead>
+                <TableHead>Location</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {approvedData.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell className="font-medium">
-                    {record.studentName}
-                  </TableCell>
-                  <TableCell>{record.company}</TableCell>
-                  <TableCell>{record.package}</TableCell>
-                  <TableCell>{record.department}</TableCell>
-                  <TableCell>
-                    <Badge className="bg-primary/20 text-primary border-0">
-                      {record.status}
-                    </Badge>
-                  </TableCell>
+              {approved.map((r) => (
+                <TableRow key={r.placement_outcomes_id}>
+                  <TableCell>{r.academic_year}</TableCell>
+                  <TableCell>{r.offered_salary}</TableCell>
+                  <TableCell>{r.students_applied}</TableCell>
+                  <TableCell>{r.shortlisted_students}</TableCell>
+                  <TableCell>{r.job_location_offered}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
-
           </Table>
         </CardContent>
       </Card>
+
     </div>
   );
 };

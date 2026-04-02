@@ -23,7 +23,6 @@ const StudentDashboard = () => {
   const [otherCompanies, setOtherCompanies] = useState([]);
 
   const [predictedRole, setPredictedRole] = useState("");
-  const [missingPreferred, setMissingPreferred] = useState(false);
 
   const [companies, setCompanies] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,13 +35,10 @@ const StudentDashboard = () => {
   // ======================
 
   useEffect(() => {
-
     const storedUser = localStorage.getItem("user");
-
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
-
   }, []);
 
   // ======================
@@ -50,20 +46,16 @@ const StudentDashboard = () => {
   // ======================
 
   useEffect(() => {
-
     const fetchData = async () => {
-
       const { data } = await supabase
         .from("placement_outcomes")
         .select("*");
 
       setCompanies(data || []);
       setLoading(false);
-
     };
 
     fetchData();
-
   }, []);
 
   // ======================
@@ -98,73 +90,74 @@ const StudentDashboard = () => {
       s.skill_name.toLowerCase()
     );
 
-    const preferredCompanies = user.preferred_company
+    const preferredCompaniesInput = user.preferred_company
       ? user.preferred_company
           .split(",")
           .map((c) => c.trim().toLowerCase())
       : [];
 
     const res = await fetch("http://127.0.0.1:5000/recommend", {
-
       method: "POST",
       headers: { "Content-Type": "application/json" },
-
       body: JSON.stringify({
         skills: userSkills,
-        companies: preferredCompanies
+        companies: preferredCompaniesInput
       })
-
     });
 
     const data = await res.json();
 
     setPredictedRole(data.role || "");
     setSkills(data.skills || []);
-
     setPreferredCompanies(data.preferred_companies || []);
     setOtherCompanies(data.other_companies || []);
 
-    setMissingPreferred(data.preferred_missing);
-
     setGenerating(false);
-
   };
 
   return (
 
     <div className="space-y-6">
 
-      {/* PROFILE */}
+      {/* ================= NAVBAR ================= */}
 
-      {user && (
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle>Student Profile</CardTitle>
-          </CardHeader>
+      <div className="flex justify-between items-center p-4 border-b bg-white shadow-sm">
 
-          <CardContent>
-            <p><strong>Name:</strong> {user.student_name}</p>
-            <p><strong>Email:</strong> {user.email}</p>
-            <p><strong>Branch:</strong> {user.branch}</p>
-            <p><strong>Year:</strong> {user.year}</p>
-          </CardContent>
-        </Card>
-      )}
+        <h1 className="text-lg font-semibold">Career Compass</h1>
 
-      {/* SEARCH */}
+        {user && (
+          <div className="relative group">
 
-      <div className="relative w-full max-w-xl">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
+            {/* Profile Circle */}
+            <div className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 text-white font-semibold cursor-pointer">
+              {user.student_name?.charAt(0).toUpperCase()}
+            </div>
 
-        <Input
-          placeholder="Search by year or location..."
-          className="pl-10"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+            {/* Hover Dropdown */}
+            <div className="absolute right-0 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 
+                            opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                            transition-all duration-200 z-50">
+
+              <p className="font-semibold">{user.student_name}</p>
+              <p className="text-sm text-gray-600">{user.email}</p>
+
+              <hr className="my-2" />
+
+              <p className="text-sm">Branch: {user.branch}</p>
+              <p className="text-sm">Year: {user.year}</p>
+
+            </div>
+
+          </div>
+        )}
+
       </div>
 
-      {/* GENERATE BUTTON */}
+      {/* ❌ PROFILE CARD REMOVED */}
+
+      {/* ❌ SEARCH BAR REMOVED */}
+
+      {/* ================= GENERATE BUTTON ================= */}
 
       <div className="flex justify-center">
         <Button onClick={handleGenerate} disabled={generating}>
@@ -172,21 +165,21 @@ const StudentDashboard = () => {
         </Button>
       </div>
 
-      {/* RECOMMENDATION CARDS */}
+      {/* ================= RECOMMENDATION ================= */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
 
         {/* SKILLS */}
-
         <Card>
           <CardHeader>
             <CardTitle>Recommended Skills</CardTitle>
           </CardHeader>
 
           <CardContent>
-
             {skills.length === 0 ? (
-              <p>No skills yet</p>
+              <p className="text-sm text-gray-600">
+                Click on Generate Recommendation button to generate recommendation.
+              </p>
             ) : (
               skills.map((s) => (
                 <div key={s} className="border p-2 rounded mb-2">
@@ -194,12 +187,10 @@ const StudentDashboard = () => {
                 </div>
               ))
             )}
-
           </CardContent>
         </Card>
 
-        {/* PREFERRED COMPANIES */}
-
+        {/* PREFERRED */}
         <Card>
           <CardHeader>
             <CardTitle>Your Preferred Companies</CardTitle>
@@ -209,50 +200,41 @@ const StudentDashboard = () => {
                 Predicted Role: {predictedRole}
               </p>
             )}
-
           </CardHeader>
 
           <CardContent>
-
-            {missingPreferred ? (
-
+            {preferredCompanies.length === 0 ? (
               <p className="text-sm text-gray-600">
-                We currently don't have role data for your preferred companies.
-                We're expanding our dataset.
+                Click on Generate Recommendation button to generate recommendation.
               </p>
-
             ) : (
-
-              <p className="text-sm">
-                {preferredCompanies.join(", ")}
-              </p>
-
+              preferredCompanies.map((c) => (
+                <div key={c} className="border p-2 rounded mb-2">
+                  {c} - {predictedRole}
+                </div>
+              ))
             )}
-
           </CardContent>
         </Card>
 
-        {/* OTHER COMPANIES */}
-
+        {/* OTHER */}
         <Card>
           <CardHeader>
             <CardTitle>You Can Also Apply Here</CardTitle>
           </CardHeader>
 
           <CardContent>
-
             {otherCompanies.map((c) => (
               <div key={c} className="border p-2 rounded mb-2">
                 {c} - {predictedRole}
               </div>
             ))}
-
           </CardContent>
         </Card>
 
       </div>
 
-      {/* TABLE */}
+      {/* ================= TABLE ================= */}
 
       <Card>
         <CardHeader>
@@ -266,7 +248,6 @@ const StudentDashboard = () => {
           ) : (
 
             <Table>
-
               <TableHeader>
                 <TableRow>
                   <TableHead>Year</TableHead>
@@ -278,7 +259,6 @@ const StudentDashboard = () => {
               </TableHeader>
 
               <TableBody>
-
                 {filteredCompanies.map((c) => (
                   <TableRow key={c.placement_outcomes_id}>
                     <TableCell>{c.academic_year}</TableCell>
@@ -288,7 +268,6 @@ const StudentDashboard = () => {
                     <TableCell>{c.job_location_offered}</TableCell>
                   </TableRow>
                 ))}
-
               </TableBody>
 
             </Table>
