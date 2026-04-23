@@ -123,7 +123,6 @@ def signup():
                 "message": "Email already registered"
             })
 
-        # 🔥 preferred_company added
         student_data = {
             "student_name": data.get("name"),
             "email": email,
@@ -165,9 +164,7 @@ def recommend():
     user_skills = [s.lower() for s in data.get("skills", [])]
     preferred_companies = [c.lower() for c in data.get("companies", [])]
 
-    # =========================
-    # ROLE PREDICTION
-    # =========================
+   
     user_vector = pd.DataFrame(
         mlb.transform([user_skills]),
         columns=mlb.classes_
@@ -176,14 +173,10 @@ def recommend():
     pred_role = model.predict(user_vector)
     role_name = le.inverse_transform(pred_role)[0]
 
-    # =========================
-    # FILTER DATA BY ROLE
-    # =========================
+   
     role_df = df[df["role_name"] == role_name]
 
-    # =========================
-    # TF-IDF SIMILARITY
-    # =========================
+   
     filtered_text = role_df["tools_and_technologies"].apply(lambda x: " ".join(x))
     filtered_tfidf = tfidf.transform(filtered_text)
 

@@ -1,34 +1,56 @@
-import { useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Upload, X, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  ChartContainer, ChartTooltip, ChartTooltipContent,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  PieChart, Pie, Cell, ResponsiveContainer
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
-import { placementStats, departmentStats } from "@/data/mockData";
+
 import { supabase } from "@/lib/supabaseClient";
 
 const barConfig = {
   selected: { label: "Students Selected", color: "hsl(var(--chart-1))" },
 };
 
-const pieColors = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-5))",
-  "hsl(var(--chart-4))",
-];
-
 const PlacementCellDashboard = () => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [previewData, setPreviewData] = useState([]);
   const [chartData, setChartData] = useState([]);
+
+  // ✅ Load latest approved data
+  useEffect(() => {
+    loadLatestData();
+  }, []);
+
+  const loadLatestData = async () => {
+    const { data, error } = await supabase
+      .from("approvals")
+      .select("*")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    if (data.length > 0) {
+      const csvData = data[0].data;
+      console.log("CSV DATA FROM DB:", csvData);
+      setChartData(csvData);
+    }
+  };
 
   // 📂 FILE HANDLER
   const handleFile = useCallback((file) => {
@@ -41,39 +63,44 @@ const PlacementCellDashboard = () => {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result;
+      const text = e.target?.result as string;
 
       const rows = text
         .split("\n")
-        .map((r) => r.split(",").map(c => c.trim()));
+        .map((r) => r.split(",").map((c) => c.trim()));
 
       setPreviewData(rows.slice(0, 6));
 
       const headers = rows[0];
       const dataRows = rows.slice(1);
 
-      // 🔥 SMART COLUMN DETECTION
-      const companyIndex = headers.findIndex(h =>
+      console.log("HEADERS:", headers);
+
+      // 🔥 COLUMN DETECTION
+      const companyIndex = headers.findIndex((h) =>
         /company|name|org/i.test(h)
       );
 
-      const selectedIndex = headers.findIndex(h =>
-        /selected|placed|hired|students/i.test(h)
+      const selectedIndex = headers.findIndex((h) =>
+        /selected|shortlisted|placed|hired/i.test(h)
       );
+
+      console.log("Selected Column:", headers[selectedIndex]);
 
       if (companyIndex === -1 || selectedIndex === -1) {
         alert("Could not detect required columns.\nCheck CSV headers.");
-        console.log("Headers found:", headers);
         return;
       }
 
       // 🔥 FORMAT DATA
       const formatted = dataRows
-        .filter(row => row.length > 1)
-        .map(row => ({
+        .filter((row) => row.length > 1)
+        .map((row) => ({
           company: row[companyIndex],
           selected: Number(row[selectedIndex]) || 0,
         }));
+
+      console.log("FORMATTED DATA:", formatted);
 
       setChartData(formatted);
     };
@@ -104,7 +131,7 @@ const PlacementCellDashboard = () => {
         uploaded_by: "Placement Cell",
         records: previewData.length,
         status: "pending",
-        data: previewData,
+        data: chartData,
       },
     ]);
 
@@ -118,11 +145,6 @@ const PlacementCellDashboard = () => {
       setChartData([]);
     }
   };
-
-  const depData = departmentStats.map((d) => ({
-    ...d,
-    rate: Math.round((d.placed / d.total) * 100),
-  }));
 
   return (
     <div className="space-y-6">
@@ -139,7 +161,10 @@ const PlacementCellDashboard = () => {
         <CardContent>
           {!uploadedFile ? (
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer
@@ -149,7 +174,7 @@ const PlacementCellDashboard = () => {
                 input.type = "file";
                 input.accept = ".csv";
                 input.onchange = (e) => {
-                  const file = e.target.files?.[0];
+                  const file = (e.target as HTMLInputElement).files?.[0];
                   if (file) handleFile(file);
                 };
                 input.click();
@@ -157,7 +182,8 @@ const PlacementCellDashboard = () => {
             >
               <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm">
-                Drag & drop CSV or <span className="text-primary">click</span>
+                Drag & drop CSV or{" "}
+                <span className="text-primary">click</span>
               </p>
             </div>
           ) : (
@@ -218,7 +244,7 @@ const PlacementCellDashboard = () => {
       </Card>
 
       {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-1 gap-6">
 
         {/* BAR CHART */}
         <Card>
@@ -231,7 +257,7 @@ const PlacementCellDashboard = () => {
 
           <CardContent>
             <ChartContainer config={barConfig} className="h-[300px]">
-              <BarChart data={chartData.length ? chartData : placementStats}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="company" />
                 <YAxis />
@@ -239,25 +265,6 @@ const PlacementCellDashboard = () => {
                 <Bar dataKey="selected" fill="var(--color-selected)" />
               </BarChart>
             </ChartContainer>
-          </CardContent>
-        </Card>
-
-        {/* PIE CHART */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Department-wise Placement Rate</CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={depData} dataKey="rate" nameKey="department">
-                  {depData.map((_, i) => (
-                    <Cell key={i} fill={pieColors[i % pieColors.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
           </CardContent>
         </Card>
 

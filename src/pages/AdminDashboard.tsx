@@ -11,23 +11,32 @@ import { supabase } from "@/lib/supabaseClient";
 const AdminDashboard = () => {
   const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [rejectMsg, setRejectMsg] = useState("");
   const [selectedRejectId, setSelectedRejectId] = useState<number | null>(null);
 
   // 🔥 FETCH DATA
   const fetchData = async () => {
-    const { data } = await supabase
-      .from("approvals")
-      .select("*")
-      .eq("status", "pending");
+    setLoading(true);
 
-    setPending(data || []);
+    try {
+      // Pending approvals
+      const { data: pendingData } = await supabase
+        .from("approvals")
+        .select("*")
+        .eq("status", "pending");
+      setPending(pendingData || []);
 
-    const { data: approvedData } = await supabase
-      .from("placement_outcomes")
-      .select("*");
+      // Approved data
+      const { data: approvedData } = await supabase
+        .from("placement_outcomes")
+        .select("*");
+      setApproved(approvedData || []);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    }
 
-    setApproved(approvedData || []);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -41,11 +50,11 @@ const AdminDashboard = () => {
 
       // convert CSV → DB rows
       const formatted = rows.slice(1).map((r: string[]) => ({
-        academic_year: r[0],
-        offered_salary: r[1],
-        students_applied: r[2],
-        shortlisted_students: r[3],
-        job_location_offered: r[4],
+        company_name: r[0],
+        students_applied: r[1],
+        shortlisted_students: r[2],
+        academic_year: r[3],
+        offered_salary: r[4],
       }));
 
       // insert into placement_outcomes
@@ -59,23 +68,29 @@ const AdminDashboard = () => {
 
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Error approving:", err);
     }
   };
 
   // ❌ REJECT
   const handleReject = async (id: number) => {
-    await supabase
-      .from("approvals")
-      .update({
-        status: "rejected",
-        message: rejectMsg,
-      })
-      .eq("id", id);
+    if (!rejectMsg.trim()) return; // don't allow empty rejection
 
-    setRejectMsg("");
-    setSelectedRejectId(null);
-    fetchData();
+    try {
+      await supabase
+        .from("approvals")
+        .update({
+          status: "rejected",
+          message: rejectMsg,
+        })
+        .eq("id", id);
+
+      setRejectMsg("");
+      setSelectedRejectId(null);
+      fetchData();
+    } catch (err) {
+      console.error("Error rejecting:", err);
+    }
   };
 
   return (
@@ -95,7 +110,7 @@ const AdminDashboard = () => {
 
         <CardContent>
           {pending.length === 0 ? (
-            <p className="text-center">No pending</p>
+            <p className="text-center">No pending approvals</p>
           ) : (
             pending.map((item) => (
               <div key={item.id} className="border p-4 mb-3 rounded">
@@ -145,29 +160,35 @@ const AdminDashboard = () => {
         </CardHeader>
 
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Year</TableHead>
-                <TableHead>Salary</TableHead>
-                <TableHead>Applied</TableHead>
-                <TableHead>Shortlisted</TableHead>
-                <TableHead>Location</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {approved.map((r) => (
-                <TableRow key={r.placement_outcomes_id}>
-                  <TableCell>{r.academic_year}</TableCell>
-                  <TableCell>{r.offered_salary}</TableCell>
-                  <TableCell>{r.students_applied}</TableCell>
-                  <TableCell>{r.shortlisted_students}</TableCell>
-                  <TableCell>{r.job_location_offered}</TableCell>
+          {loading ? (
+            <p className="text-center">Loading approved data...</p>
+          ) : approved.length === 0 ? (
+            <p className="text-center">No approved data yet</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Company Name</TableHead>
+                  <TableHead>Students Applied</TableHead>
+                  <TableHead>Shortlisted Students</TableHead>
+                  <TableHead>Academic Year</TableHead>
+                  <TableHead>Offered Salary</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+
+              <TableBody>
+                {approved.map((r) => (
+                  <TableRow key={r.id || r.placement_outcomes_id}>
+                    <TableCell>{r.company_name}</TableCell>
+                    <TableCell>{r.students_applied}</TableCell>
+                    <TableCell>{r.shortlisted_students}</TableCell>
+                    <TableCell>{r.academic_year}</TableCell>
+                    <TableCell>{r.offered_salary}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
