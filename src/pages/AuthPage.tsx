@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Select from "react-select";
 
-/* ================================
-   COMPANY OPTIONS
-================================ */
+/* ================= OPTIONS ================= */
 
 const companyOptions = [
   { value: "google", label: "Google" },
@@ -25,20 +23,14 @@ const companyOptions = [
   { value: "nvidia", label: "Nvidia" }
 ];
 
-/* ================================
-   SKILL OPTIONS
-================================ */
-
 const skillOptions = [
-  // Programming Languages
   { value: "c", label: "C" },
   { value: "c++", label: "C++" },
   { value: "java", label: "Java" },
   { value: "python", label: "Python" },
   { value: "javascript", label: "JavaScript" },
   { value: "typescript", label: "TypeScript" },
-
-  // Web Development
+  { value: "rust", label: "Rust" },
   { value: "html", label: "HTML" },
   { value: "css", label: "CSS" },
   { value: "react", label: "React" },
@@ -49,52 +41,36 @@ const skillOptions = [
   { value: "next.js", label: "Next.js" },
   { value: "tailwind", label: "Tailwind CSS" },
   { value: "bootstrap", label: "Bootstrap" },
-
-  // Backend
   { value: "spring", label: "Spring Boot" },
   { value: "django", label: "Django" },
   { value: "flask", label: "Flask" },
   { value: "microservices", label: "Microservices" },
-
-  // Databases
   { value: "sql", label: "SQL" },
   { value: "mysql", label: "MySQL" },
   { value: "postgresql", label: "PostgreSQL" },
   { value: "mongodb", label: "MongoDB" },
   { value: "redis", label: "Redis" },
-
-  // Core CS Skills
   { value: "dsa", label: "Data Structures & Algorithms" },
   { value: "system design", label: "System Design" },
   { value: "operating systems", label: "Operating Systems" },
   { value: "computer networks", label: "Computer Networks" },
   { value: "dbms", label: "DBMS" },
-
-  // Data & AI
   { value: "machine learning", label: "Machine Learning" },
   { value: "deep learning", label: "Deep Learning" },
   { value: "data science", label: "Data Science" },
   { value: "analytics", label: "Analytics" },
   { value: "powerbi", label: "Power BI" },
   { value: "excel", label: "Excel" },
-
-  // Cloud & DevOps
   { value: "aws", label: "AWS" },
   { value: "azure", label: "Azure" },
   { value: "gcp", label: "Google Cloud" },
   { value: "docker", label: "Docker" },
   { value: "kubernetes", label: "Kubernetes" },
   { value: "ci/cd", label: "CI/CD" },
-
-  // Tools
   { value: "git", label: "Git" },
   { value: "github", label: "GitHub" },
   { value: "linux", label: "Linux" }
 ];
-
-/* ================================
-   EXPERIENCE OPTIONS
-================================ */
 
 const experienceOptions = [
   { value: "entry", label: "Entry Level" },
@@ -102,18 +78,17 @@ const experienceOptions = [
   { value: "senior", label: "Senior Level" }
 ];
 
-/* ================================
-   COMPONENT
-================================ */
+/* ================= COMPONENT ================= */
 
 const AuthPage = () => {
-
   const [selectedRole, setSelectedRole] = useState(null);
   const [isSignup, setIsSignup] = useState(false);
 
   const [skills, setSkills] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [experience, setExperience] = useState(null);
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -125,117 +100,101 @@ const AuthPage = () => {
     year: ""
   });
 
+  const [errors, setErrors] = useState({
+    email: "",
+    password: "",
+    name: "",
+    phone: "",
+    university: "",
+    branch: "",
+    year: "",
+    skills: "",
+    companies: "",
+    experience: "",
+    general: ""
+  });
+
   const navigate = useNavigate();
 
-  /* ================================
-      INPUT HANDLER
-  ================================= */
+  /* ================= INPUT ================= */
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "name" && !/^[A-Za-z ]*$/.test(value)) return;
+    if (name === "email") {
+      setForm({ ...form, [name]: value.toLowerCase() });
+      return;
+    }
+    setForm({ ...form, [name]: value });
   };
 
-  /* ================================
-      VALIDATION
-  ================================= */
+  /* ================= VALIDATION ================= */
 
   const validate = () => {
+    const newErrors = {
+      email: "", password: "", name: "", phone: "",
+      university: "", branch: "", year: "",
+      skills: "", companies: "", experience: ""
+    };
 
-    if (!form.email || !form.password) {
-      alert("Email and Password required");
-      return false;
-    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+$/;
+    const phoneRegex = /^(?!([0-9])\1{9})[0-9]{10}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&]).{6,}$/;
 
-    const passwordRegex =
-      /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&]).{5,}$/;
+    if (!form.email) newErrors.email = "Required";
+    else if (!emailRegex.test(form.email) || form.email.endsWith("."))
+      newErrors.email = "Enter a valid email (e.g. abc@gmail.com)";
 
-    if (!passwordRegex.test(form.password)) {
-      alert("Password must contain capital, small, number & special character");
-      return false;
-    }
+    if (!form.password) newErrors.password = "Required";
+    else if (!passwordRegex.test(form.password))
+      newErrors.password = "Make your password stronger by adding a symbol or a number(Length 6 character).";
 
     if (isSignup && selectedRole === "student") {
-
-      if (
-        !form.name ||
-        !form.phone ||
-        !form.university ||
-        !form.branch ||
-        !form.year
-      ) {
-        alert("All student fields required");
-        return false;
-      }
-
-      if (skills.length === 0) {
-        alert("Select at least one skill");
-        return false;
-      }
-
-      if (companies.length === 0) {
-        alert("Select at least one company");
-        return false;
-      }
-
-      if (!experience) {
-        alert("Select experience level");
-        return false;
-      }
-
-      if (form.phone.length !== 10) {
-        alert("Phone must be 10 digits");
-        return false;
-      }
+      if (!form.name) newErrors.name = "Invalid input";
+      if (!form.phone || !phoneRegex.test(form.phone))
+        newErrors.phone = "Invalid phone";
+      if (!form.university) newErrors.university = "Required";
+      if (!form.branch) newErrors.branch = "Required";
+      if (!form.year) newErrors.year = "Required";
+      if (!skills.length) newErrors.skills = "Select skill";
+      if (!companies.length) newErrors.companies = "Select company";
+      if (!experience) newErrors.experience = "Select experience";
     }
 
-    return true;
+    setErrors({ ...newErrors, general: "" });
+    return Object.values(newErrors).every((val) => val === "");
   };
 
-  /* ================================
-      SUBMIT
-  ================================= */
+  /* ================= SUBMIT ================= */
 
   const handleSubmit = async () => {
-
     if (!validate()) return;
-
     const endpoint = isSignup ? "signup" : "login";
 
     try {
-
-      let bodyData;
-
-      if (isSignup) {
-
-        bodyData = {
+      const bodyData = isSignup
+        ? {
           role: selectedRole,
           ...form,
-          skills: skills.map((s) => s.value).join(","),
-          preferred_company: companies.map((c) => c.value).join(","),
-          experience: experience.value
-        };
-
-      } else {
-
-        bodyData = {
+          skills: skills.map(s => s.value).join(","),
+          preferred_company: companies.map(c => c.value).join(","),
+          experience: experience?.value
+        }
+        : {
           role: selectedRole,
           email: form.email,
           password: form.password
         };
-      }
 
       const res = await fetch(`http://127.0.0.1:5000/${endpoint}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyData)
       });
 
       const data = await res.json();
-
       if (data.status !== "success") {
-        alert(data.message || "Something went wrong");
+        setErrors(prev => ({ ...prev, general: data.message }));
         return;
       }
 
@@ -246,135 +205,253 @@ const AuthPage = () => {
       if (selectedRole === "admin") navigate("/admin");
       if (selectedRole === "placement") navigate("/placement-cell");
 
-    } catch (err) {
-      console.error(err);
-      alert("Server error");
+    } catch {
+      setErrors(prev => ({ ...prev, general: "Server error" }));
     }
   };
 
-  /* ================================
-      UI
-  ================================= */
+  /* ================= UI ================= */
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
 
       {!selectedRole && (
-        <div className="flex flex-col items-center gap-8">
+        <div className="max-w-4xl w-full animate-in fade-in zoom-in duration-500">
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-extrabold text-slate-800 tracking-tight mb-4">
+              Career <span className="text-blue-600">Compass</span>
+            </h1>
+            <p className="text-slate-500 text-lg font-medium">AI-Powered skill gap analysis for your dream career.</p>
+          </div>
 
-          <h1 className="text-3xl font-bold text-gray-700">
-            Career Compass
-          </h1>
-
-          <div className="flex gap-8">
-
-            {["student", "admin", "placement"].map((role) => (
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { id: "student", label: "Student", icon: "🎓" },
+              { id: "admin", label: "Admin", icon: "🛡️" },
+              { id: "placement", label: "Placement", icon: "💼" }
+            ].map((role) => (
               <div
-                key={role}
+                key={role.id}
                 onClick={() => {
-                  setSelectedRole(role);
+                  setSelectedRole(role.id);
                   setIsSignup(false);
                 }}
-                className="cursor-pointer w-52 h-52 flex items-center justify-center text-xl font-semibold 
-                bg-white rounded-2xl shadow-md hover:shadow-xl 
-                transition duration-300 hover:scale-105 border"
+                className="group cursor-pointer bg-white/80 backdrop-blur-md p-8 rounded-[2.5rem] shadow-sm border border-white hover:border-blue-400 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 text-center"
               >
-                {role.toUpperCase()}
+                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">{role.icon}</div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2 uppercase tracking-wide">{role.label}</h3>
+                <p className="text-slate-400 text-xs font-semibold">Click to enter portal</p>
               </div>
-
             ))}
-
           </div>
         </div>
       )}
 
       {selectedRole && (
-
-        <div className="bg-white p-8 rounded-2xl shadow-lg w-96 flex flex-col gap-4">
-
-          <h2 className="text-2xl font-bold text-center text-gray-700">
-            {selectedRole.toUpperCase()} {isSignup ? "Signup" : "Login"}
-          </h2>
-
-          <input
-            name="email"
-            placeholder="Email"
-            onChange={handleChange}
-            className="border p-2 rounded-lg"
-          />
-
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            onChange={handleChange}
-            className="border p-2 rounded-lg"
-          />
-
-          {isSignup && selectedRole === "student" && (
-            <>
-              <input name="name" placeholder="Name" onChange={handleChange} className="border p-2 rounded-lg" />
-              <input name="phone" placeholder="Phone" onChange={handleChange} className="border p-2 rounded-lg" />
-              <input name="university" placeholder="University" onChange={handleChange} className="border p-2 rounded-lg" />
-              <input name="branch" placeholder="Branch" onChange={handleChange} className="border p-2 rounded-lg" />
-              <input name="year" placeholder="Year" onChange={handleChange} className="border p-2 rounded-lg" />
-
-              <div>
-                <label className="text-sm font-semibold">Skills</label>
-                <Select
-                  options={skillOptions}
-                  isMulti
-                  onChange={(selected) => setSkills(selected ? [...selected] : [])}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Preferred Companies</label>
-                <Select
-                  options={companyOptions}
-                  isMulti
-                  onChange={(selected) => setCompanies(selected ? [...selected] : [])}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Experience</label>
-                <Select
-                  options={experienceOptions}
-                  onChange={(selected) => setExperience(selected)}
-                />
-              </div>
-            </>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg"
-          >
-            {isSignup ? "Signup" : "Login"}
+        <div className="bg-white/90 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-2xl w-full max-w-[580px] border border-white animate-in slide-in-from-bottom-10 duration-500 relative overflow-hidden">
+          
+          <button onClick={() => setSelectedRole(null)} className="text-slate-400 hover:text-blue-500 transition-colors mb-4 flex items-center gap-1 text-sm font-bold uppercase tracking-wider">
+            ← Change Role
           </button>
 
-          {selectedRole === "student" && (
-            <p
-              className="text-blue-500 cursor-pointer text-center"
-              onClick={() => setIsSignup(!isSignup)}
+          <header className="mb-8">
+            <h2 className="text-3xl font-black text-slate-800 capitalize leading-tight">
+              {selectedRole} <span className="text-blue-600">{isSignup ? "Registration" : "Login"}</span>
+            </h2>
+            <p className="text-slate-500 text-sm mt-1 font-medium">Enter your credentials to manage your career journey.</p>
+          </header>
+
+          {errors.general && (
+            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-xl mb-6 text-sm font-bold">
+              {errors.general}
+            </div>
+          )}
+
+          <div className="space-y-5">
+            {/* Email + Password Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Email Address</label>
+                <input name="email" onChange={handleChange} placeholder="name@university.edu" className="input-modern" />
+                <p className="error-text">{errors.email}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="input-modern pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-blue-500 uppercase hover:text-blue-700"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <p className="error-text">{errors.password}</p>
+              </div>
+            </div>
+
+            {/* SIGNUP FOR STUDENT */}
+            {isSignup && selectedRole === "student" && (
+              <div className="space-y-5 pt-4 border-t border-slate-100 mt-4 animate-in fade-in duration-500">
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Full Name</label>
+                    <input name="name" onChange={handleChange} className="input-modern" placeholder="e.g. Shreya" />
+                    <p className="error-text">{errors.name}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Phone Number</label>
+                    <input name="phone" onChange={handleChange} className="input-modern" placeholder="10-digit number" />
+                    <p className="error-text">{errors.phone}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">University</label>
+                    <select name="university" onChange={handleChange} className="input-modern appearance-none">
+                      <option value="">Select</option>
+                      <option value="banasthali">Banasthali Vidyapith</option>
+                    </select>
+                    <p className="error-text">{errors.university}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Branch</label>
+                    <select name="branch" onChange={handleChange} className="input-modern appearance-none">
+                      <option value="">Select</option>
+                      <option value="cs">CS</option>
+                      <option value="it">IT</option>
+                      <option value="ai">AI</option>
+                    </select>
+                    <p className="error-text">{errors.branch}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Year</label>
+                    <select name="year" onChange={handleChange} className="input-modern appearance-none">
+                      <option value="">Select</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                    </select>
+                    <p className="error-text">{errors.year}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Experience Level</label>
+                  <Select 
+                    options={experienceOptions} 
+                    onChange={setExperience} 
+                    className="react-select-container" 
+                    classNamePrefix="react-select"
+                  />
+                  <p className="error-text">{errors.experience}</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Current Skills</label>
+                  <Select 
+                    options={skillOptions} 
+                    isMulti 
+                    onChange={(s) => setSkills(s ? [...s] : [])} 
+                    className="react-select-container" 
+                    classNamePrefix="react-select"
+                  />
+                  <p className="error-text">{errors.skills}</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">Target Companies</label>
+                  <Select 
+                    options={companyOptions} 
+                    isMulti 
+                    onChange={(c) => setCompanies(c ? [...c] : [])} 
+                    className="react-select-container" 
+                    classNamePrefix="react-select"
+                  />
+                  <p className="error-text">{errors.companies}</p>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200 transition-all active:scale-[0.98] mt-4 text-lg tracking-wide"
             >
-              {isSignup ? "Already have account? Login" : "Create account"}
-            </p>
-          )}
+              {isSignup ? "Create Student Account" : `Login as ${selectedRole}`}
+            </button>
 
-          <button
-            className="text-sm text-gray-500"
-            onClick={() => setSelectedRole(null)}
-          >
-            ← Back
-          </button>
-
+            {selectedRole === "student" && (
+              <p className="text-center text-slate-500 text-sm mt-6 font-bold">
+                {isSignup ? "Already have an account?" : "New here?"}{" "}
+                <span onClick={() => setIsSignup(!isSignup)} className="text-blue-600 cursor-pointer hover:underline underline-offset-4 ml-1">
+                  {isSignup ? "Sign In" : "Create account"}
+                </span>
+              </p>
+            )}
+          </div>
         </div>
-
       )}
 
+      <style>{`
+        .input-modern {
+          width: 100%;
+          padding: 12px 16px;
+          background: #f8fafc;
+          border: 2px solid #f1f5f9;
+          border-radius: 12px;
+          transition: all 0.2s;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #1e293b;
+        }
+        .input-modern:focus {
+          outline: none;
+          border-color: #3b82f6;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .input-modern::placeholder {
+          color: #cbd5e1;
+        }
+        .error-text {
+          color: #ef4444;
+          font-size: 11px;
+          margin-top: 4px;
+          font-weight: 800;
+          margin-left: 4px;
+        }
+        .react-select__control {
+          border-radius: 12px !important;
+          border: 2px solid #f1f5f9 !important;
+          background: #f8fafc !important;
+          padding: 3px !important;
+          box-shadow: none !important;
+        }
+        .react-select__control--is-focused {
+          border-color: #3b82f6 !important;
+          background: white !important;
+          box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+        }
+        .react-select__placeholder {
+          font-weight: 500;
+          color: #cbd5e1 !important;
+        }
+        .react-select__multi-value {
+          background-color: #eff6ff !important;
+          border-radius: 8px !important;
+          color: #1e40af !important;
+        }
+      `}</style>
     </div>
   );
 };

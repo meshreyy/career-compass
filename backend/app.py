@@ -56,13 +56,13 @@ df["skills_text"] = df["tools_and_technologies"].apply(lambda x: " ".join(x))
 tfidf = TfidfVectorizer()
 tfidf.fit(df["skills_text"])
 
-print("✅ ML MODEL READY")
+print(" ML MODEL READY")
 
 # ---------------- HOME ----------------
 
 @app.route("/")
 def home():
-    return "Backend Running ✅"
+    return "Backend Running "
 
 # ---------------- LOGIN ----------------
 
