@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="D:\SHREYAAA\code\Hreact\skill_v\career-compass\backend\venv"
+VIRTUAL_ENV="D:\SHREYAAA\code\Hreact\career\career-compass\backend\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

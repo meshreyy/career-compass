@@ -15,13 +15,22 @@ CORS(app)
 
 # ---------------- SUPABASE ----------------
 
-url = "https://crumghhbmjqmgqmmdgel.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNydW1naGhibWpxbWdxbW1kZ2VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODg4NDIsImV4cCI6MjA4OTg2NDg0Mn0.Jadce9a4AOlaI2LRdCDZCCkfyYn1x6FZIJH8lf8QG78"
+# url = "https://crumghhbmjqmgqmmdgel.supabase.co"
+# key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNydW1naGhibWpxbWdxbW1kZ2VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODg4NDIsImV4cCI6MjA4OTg2NDg0Mn0.Jadce9a4AOlaI2LRdCDZCCkfyYn1x6FZIJH8lf8QG78"
+
+import os
+
+url = os.environ["SUPABASE_URL"]
+key = os.environ["SUPABASE_KEY"]
+
+
+print(url)
 
 client = httpx.Client(verify=False)
 
 supabase = create_client(url, key)
 supabase.postgrest.session = client
+
 
 # ---------------- LOAD COMPANY DATA ----------------
 
@@ -214,4 +223,5 @@ def recommend():
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
