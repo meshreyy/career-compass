@@ -193,7 +193,31 @@ const AuthPage = () => {
         body: JSON.stringify(bodyData)
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        let backendMessage = "";
+        try {
+          const errorData = await res.json();
+          backendMessage = errorData?.message ? ` ${errorData.message}` : "";
+        } catch {
+          backendMessage = "";
+        }
+        setErrors(prev => ({
+          ...prev,
+          general: `Backend request failed (${res.status}).${backendMessage} Check API deployment / VITE_API_URL.`,
+        }));
+        return;
+      }
+
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        setErrors(prev => ({
+          ...prev,
+          general: "Backend sent invalid response. Check API URL/deployment.",
+        }));
+        return;
+      }
       if (data.status !== "success") {
         setErrors(prev => ({ ...prev, general: data.message }));
         return;
@@ -207,7 +231,10 @@ const AuthPage = () => {
       if (selectedRole === "placement") navigate("/placement-cell");
 
     } catch {
-      setErrors(prev => ({ ...prev, general: "Server error" }));
+      setErrors(prev => ({
+        ...prev,
+        general: "Network error. Backend may be down or blocked by CORS.",
+      }));
     }
   };
 

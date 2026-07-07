@@ -39,67 +39,87 @@ client = httpx.Client(verify=False)
 supabase = create_client(url, key)
 supabase.postgrest.session = client
 
+_ml_state = None
 
-# ---------------- LOAD COMPANY DATA ----------------
 
-response = supabase.table("company").select("*").execute()
-data = response.data
+def get_ml_state():
+    global _ml_state
+    if _ml_state is not None:
+        return _ml_state
 
-df = pd.DataFrame(data)
+    response = supabase.table("company").select("*").execute()
+    data = response.data
+    df = pd.DataFrame(data)
 
-df["tools_and_technologies"] = df["tools_and_technologies"].apply(
-    lambda x: [i.strip().lower() for i in str(x).split(",")]
-)
+    df["tools_and_technologies"] = df["tools_and_technologies"].apply(
+        lambda x: [i.strip().lower() for i in str(x).split(",")]
+    )
 
-# ---------------- ML MODEL ----------------
+    mlb = MultiLabelBinarizer()
+    skills_encoded = mlb.fit_transform(df["tools_and_technologies"])
+    skills_df = pd.DataFrame(skills_encoded, columns=mlb.classes_)
 
-mlb = MultiLabelBinarizer()
-skills_encoded = mlb.fit_transform(df["tools_and_technologies"])
-skills_df = pd.DataFrame(skills_encoded, columns=mlb.classes_)
+    le = LabelEncoder()
+    df["role_encoded"] = le.fit_transform(df["role_name"])
 
-le = LabelEncoder()
-df["role_encoded"] = le.fit_transform(df["role_name"])
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=10,
+        random_state=42,
+    )
+    model.fit(skills_df, df["role_encoded"])
 
-model = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=10,
-    random_state=42
-)
+    df["skills_text"] = df["tools_and_technologies"].apply(lambda x: " ".join(x))
 
-model.fit(skills_df, df["role_encoded"])
+    tfidf = TfidfVectorizer()
+    tfidf.fit(df["skills_text"])
 
-df["skills_text"] = df["tools_and_technologies"].apply(lambda x: " ".join(x))
+    _ml_state = {
+        "df": df,
+        "mlb": mlb,
+        "le": le,
+        "model": model,
+        "tfidf": tfidf,
+    }
+    print("ML MODEL READY")
+    return _ml_state
 
-tfidf = TfidfVectorizer()
-tfidf.fit(df["skills_text"])
-
-print(" ML MODEL READY")
 
 # ---------------- HOME ----------------
 
 @app.route("/")
 def home():
-    return "Backend Running "
+    return "Backend Running"
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
 
 # ---------------- LOGIN ----------------
 
 @app.route("/login", methods=["POST"])
 def login():
-
-    data = request.json
+    data = request.json or {}
     role = data.get("role")
-    email = data.get("email").lower()
+    email = (data.get("email") or "").lower()
     password = data.get("password")
+
+    if not role or not email or not password:
+        return jsonify({"status": "error", "message": "Missing login fields"}), 400
 
     table = "student"
 
     if role == "admin":
         table = "admin_login"
-
     elif role == "placement":
         table = "placement_login"
 
-    res = supabase.table(table).select("*").execute()
+    try:
+        res = supabase.table(table).select("*").execute()
+    except Exception:
+        return jsonify({"status": "error", "message": "Database connection failed"}), 500
 
     user = None
 
@@ -117,83 +137,92 @@ def login():
     return jsonify({
         "status": "success",
         "user": user,
-        "role": role
+        "role": role,
     })
+
 
 # ---------------- SIGNUP ----------------
 
 @app.route("/signup", methods=["POST"])
 def signup():
-
-    data = request.json
+    data = request.json or {}
     role = data.get("role")
 
-    if role == "student":
+    if role != "student":
+        return jsonify({"status": "error", "message": "Signup only supported for students"}), 400
 
-        email = data.get("email").lower()
+    email = (data.get("email") or "").lower()
 
+    try:
         existing = supabase.table("student").select("*").eq("email", email).execute()
+    except Exception:
+        return jsonify({"status": "error", "message": "Database connection failed"}), 500
 
-        if existing.data:
-            return jsonify({
-                "status": "error",
-                "message": "Email already registered"
-            })
+    if existing.data:
+        return jsonify({
+            "status": "error",
+            "message": "Email already registered",
+        })
 
-        student_data = {
-            "student_name": data.get("name"),
-            "email": email,
-            "password": data.get("password"),
-            "phone": data.get("phone"),
-            "university": data.get("university"),
-            "branch": data.get("branch"),
-            "year": data.get("year"),
-            "preferred_company": data.get("preferred_company"),
-            "student_status": "Active"
-        }
+    student_data = {
+        "student_name": data.get("name"),
+        "email": email,
+        "password": data.get("password"),
+        "phone": data.get("phone"),
+        "university": data.get("university"),
+        "branch": data.get("branch"),
+        "year": data.get("year"),
+        "preferred_company": data.get("preferred_company"),
+        "student_status": "Active",
+    }
 
+    try:
         student_res = supabase.table("student").insert(student_data).execute()
-
         student_id = student_res.data[0]["student_id"]
 
         skills = data.get("skills")
-
         if skills:
             for skill in skills.split(","):
                 supabase.table("student_skills").insert({
                     "student_id": student_id,
-                    "skill_name": skill.strip()
+                    "skill_name": skill.strip(),
                 }).execute()
+    except Exception:
+        return jsonify({"status": "error", "message": "Failed to create account"}), 500
 
-        return jsonify({
-            "status": "success",
-            "user": student_res.data[0],
-            "role": "student"
-        })
+    return jsonify({
+        "status": "success",
+        "user": student_res.data[0],
+        "role": "student",
+    })
+
 
 # ---------------- RECOMMEND ----------------
 
 @app.route("/recommend", methods=["POST"])
 def recommend():
+    data = request.json or {}
+    ml = get_ml_state()
 
-    data = request.json
+    df = ml["df"]
+    mlb = ml["mlb"]
+    le = ml["le"]
+    model = ml["model"]
+    tfidf = ml["tfidf"]
 
     user_skills = [s.lower() for s in data.get("skills", [])]
     preferred_companies = [c.lower() for c in data.get("companies", [])]
 
-   
     user_vector = pd.DataFrame(
         mlb.transform([user_skills]),
-        columns=mlb.classes_
+        columns=mlb.classes_,
     )
 
     pred_role = model.predict(user_vector)
     role_name = le.inverse_transform(pred_role)[0]
 
-   
     role_df = df[df["role_name"] == role_name]
 
-   
     filtered_text = role_df["tools_and_technologies"].apply(lambda x: " ".join(x))
     filtered_tfidf = tfidf.transform(filtered_text)
 
@@ -211,23 +240,17 @@ def recommend():
                 skill_freq[skill] = skill_freq.get(skill, 0) + 1
 
     recommended_skills = sorted(skill_freq, key=skill_freq.get, reverse=True)[:5]
-
-    # =========================
-    # COMPANIES
-    # =========================
-
-    # preferred companies ALWAYS returned
     preferred_list = preferred_companies
-
-    # recommended companies from dataset
     other_list = role_df["company_name"].str.lower().unique().tolist()[:5]
 
     return jsonify({
         "role": role_name,
         "skills": recommended_skills,
         "preferred_companies": preferred_list,
-        "other_companies": other_list
+        "other_companies": other_list,
     })
+
+
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
