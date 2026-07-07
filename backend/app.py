@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from dotenv import load_dotenv
 
 from supabase import create_client
 import httpx
@@ -10,21 +11,28 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+import os
+
+load_dotenv()
+
 app = Flask(__name__)
-CORS(app)
+
+frontend_origins = [
+    origin.strip()
+    for origin in os.environ.get("FRONTEND_URL", "http://localhost:8080").split(",")
+    if origin.strip()
+]
+frontend_origins.extend([
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    r"https://.*\.vercel\.app",
+])
+CORS(app, origins=frontend_origins)
 
 # ---------------- SUPABASE ----------------
 
-# url = "https://crumghhbmjqmgqmmdgel.supabase.co"
-# key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNydW1naGhibWpxbWdxbW1kZ2VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODg4NDIsImV4cCI6MjA4OTg2NDg0Mn0.Jadce9a4AOlaI2LRdCDZCCkfyYn1x6FZIJH8lf8QG78"
-
-import os
-
 url = os.environ["SUPABASE_URL"]
 key = os.environ["SUPABASE_KEY"]
-
-
-print(url)
 
 client = httpx.Client(verify=False)
 
@@ -224,4 +232,4 @@ def recommend():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)

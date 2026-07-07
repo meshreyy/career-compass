@@ -22,6 +22,7 @@ import {
   Target
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { API_BASE_URL } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 const StudentDashboard = () => {
@@ -72,7 +73,7 @@ const StudentDashboard = () => {
       : [];
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/recommend", {
+      const res = await fetch(`${API_BASE_URL}/recommend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
